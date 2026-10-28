@@ -50,5 +50,5 @@ test
 prompt
 
 server.log
-# Skills directory
-/skills/skills/
+# Skills directory (sandbox tooling, not part of the website)
+/skills/
