@@ -288,10 +288,6 @@ export function ChatTab() {
                             پایگاه دانش نمایشی
                           </span>
                         ) : null}
-                        <span>
-                          مدل: {msg.meta.model} • بردارساز: {msg.meta.embedding} • بازیابی:{" "}
-                          {faNum(msg.meta.retrievedChunks)} قطعه در {faNum(msg.meta.totalMs)} میلی‌ثانیه
-                        </span>
                       </p>
                     ) : null}
                   </div>

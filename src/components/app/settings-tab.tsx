@@ -100,8 +100,7 @@ export function SettingsTab() {
               title="مدل زبانی"
               rows={[
                 { label: "وضعیت", value: settings.mode === "demo" ? "حالت نمایشی (بدون دیتابیس)" : "متصل و فعال" },
-                { label: "ارائه‌دهنده", value: settings.llmProvider },
-                { label: "مدل", value: settings.llmModel },
+                { label: "معماری", value: "RAG مستندمحور با استناد" },
                 { label: "اجرا", value: "سمت سرور (ایزوله)" },
               ]}
             />
@@ -109,7 +108,7 @@ export function SettingsTab() {
               icon={Sparkles}
               title="بردارسازی"
               rows={[
-                { label: "ارائه‌دهنده", value: settings.embeddingProvider },
+                { label: "حالت", value: "آفلاین و درونی" },
                 { label: "بعد بردار", value: faNum(settings.embeddingDim) },
                 { label: "ذخیره‌سازی", value: "SQLite (JSON)" },
               ]}
@@ -214,7 +213,7 @@ export function SettingsTab() {
             <div className="nice-scroll overflow-x-auto">
               <pre dir="ltr" className="min-w-[560px] rounded-xl bg-[oklch(0.14_0.012_170)] p-4 text-left text-[11px] leading-6 text-emerald-100/80">
 {`Upload (PDF/TXT/MD/CSV)
-   │  extract → pages → chunk (size/overlap) → hash-TFIDF embedding (384d)
+   │  extract → pages → chunk (size/overlap) → internal embedding (384d)
    ▼
 SQLite (Prisma) ── Document ── Chunk(text, page, heading, vector)
    │                                   │
