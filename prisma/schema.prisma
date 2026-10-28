@@ -1,0 +1,199 @@
+// AI Formulation Assistant — شمای پایگاه‌داده (SQLite / Prisma)
+// توجه: این محیط از SQLite استفاده می‌کند؛ معادل PostgreSQL/pgvector در استقرار تولیدی
+// در docs/IMPLEMENTATION-REPORT.fa.md مستند شده است.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── اسناد و قطعات ─────────────────────────
+
+model Document {
+  id            String   @id @default(uuid())
+  title         String
+  originalName  String
+  storedName    String   @unique
+  mimeType      String
+  sizeBytes     Int
+  checksum      String   @unique // جلوگیری از نمایه‌سازی تکراری همان فایل
+  status        String   @default("pending") // pending | processing | ready | failed | needs_ocr
+  needsOcr      Boolean  @default(false)
+  error         String?
+  pageCount     Int?
+  language      String?
+  isSeed        Boolean  @default(false) // رکوردهای نمایشی مصنوعی
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chunks             Chunk[]
+  graphEntities      GraphEntity[]
+  graphRelationships GraphRelationship[]
+
+  @@index([status])
+}
+
+model Chunk {
+  id         String   @id @default(uuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  seq        Int
+  page       Int?
+  heading    String?
+  content    String
+  // بردار نهفته به‌صورت JSON ذخیره می‌شود (SQLite نوع لیست ندارد؛ در pgvector → vector(384))
+  embedding  String
+  createdAt  DateTime @default(now())
+
+  @@unique([documentId, seq])
+  @@index([documentId])
+}
+
+// ───────────────────────── مواد اولیه و فرمولاسیون ─────────────────────────
+
+model Ingredient {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  inciName    String?
+  category    String
+  description String?
+  casNumber   String?
+  isSeed      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  formulationIngredients FormulationIngredient[]
+}
+
+model Formulation {
+  id              String   @id @default(uuid())
+  name            String
+  version         Int      @default(1)
+  productCategory String
+  description     String?
+  status          String   @default("draft") // draft | in_review | approved | deprecated
+  isSeed          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  ingredients  FormulationIngredient[]
+  measurements PropertyMeasurement[]
+  experiments  Experiment[]
+  cases        TroubleshootingCase[]
+
+  @@unique([name, version])
+}
+
+model FormulationIngredient {
+  id            String      @id @default(uuid())
+  formulationId String
+  formulation   Formulation @relation(fields: [formulationId], references: [id], onDelete: Cascade)
+  ingredientId  String
+  ingredient    Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  percentage    Float
+  unit          String      @default("percent")
+  phase         String?
+  note          String?
+
+  @@unique([formulationId, ingredientId])
+}
+
+model PropertyMeasurement {
+  id            String      @id @default(uuid())
+  formulationId String
+  formulation   Formulation @relation(fields: [formulationId], references: [id], onDelete: Cascade)
+  name          String // مثال: pH، Viscosity
+  value         Float
+  unit          String // واحد صریح: pH واحد ندارد → "-"
+  method        String?
+  note          String?
+  createdAt     DateTime    @default(now())
+}
+
+model Experiment {
+  id            String       @id @default(uuid())
+  formulationId String?
+  formulation   Formulation? @relation(fields: [formulationId], references: [id], onDelete: SetNull)
+  title         String
+  summary       String?
+  results       String?
+  status        String       @default("planned") // planned | running | completed | cancelled
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+}
+
+// ───────────────────────── عیب‌یابی ─────────────────────────
+
+model TroubleshootingCase {
+  id                      String       @id @default(uuid())
+  title                   String
+  productCategory         String
+  symptoms                String
+  manufacturingConditions String?
+  measurements            String?
+  analysis                String? // JSON تحلیل محتاطانه (عوامل احتمالی + مدارک)
+  status                  String       @default("open") // open | investigating | resolved
+  formulationId           String?
+  formulation             Formulation? @relation(fields: [formulationId], references: [id], onDelete: SetNull)
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+}
+
+// ───────────────────────── گراف دانش ─────────────────────────
+
+model GraphEntity {
+  id               String   @id @default(uuid())
+  type             String // Ingredient | Formulation | Product | Property | Supplier | ManufacturingProcess | FailureMode | Document
+  name             String
+  normalizedName   String
+  description      String?
+  confidence       Float    @default(1)
+  verified         Boolean  @default(false) // فقط رکوردهای دستی/تأییدشده true هستند
+  sourceDocumentId String?
+  sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  outgoing GraphRelationship[] @relation("source")
+  incoming GraphRelationship[] @relation("target")
+
+  @@unique([type, normalizedName])
+  @@index([type])
+}
+
+model GraphRelationship {
+  id               String   @id @default(uuid())
+  sourceEntityId   String
+  sourceEntity     GraphEntity @relation("source", fields: [sourceEntityId], references: [id], onDelete: Cascade)
+  targetEntityId   String
+  targetEntity     GraphEntity @relation("target", fields: [targetEntityId], references: [id], onDelete: Cascade)
+  type             String // CONTAINS | HAS_PROPERTY | USED_IN | SUPPLIED_BY | ASSOCIATED_WITH | CAUSES_OR_CONTRIBUTES_TO | DOCUMENTED_IN
+  evidence         String?
+  confidence       Float    @default(1)
+  verified         Boolean  @default(false)
+  sourceDocumentId String?
+  sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+
+  @@unique([sourceEntityId, targetEntityId, type])
+}
+
+// ───────────────────────── حسابرسی و تنظیمات ─────────────────────────
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  action     String // create | delete | reindex | seed | ...
+  entityType String
+  entityId   String?
+  meta       String?
+  createdAt  DateTime @default(now())
+}
+
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
