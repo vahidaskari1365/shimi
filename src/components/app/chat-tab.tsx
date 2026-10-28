@@ -273,9 +273,25 @@ export function ChatTab() {
                     ) : null}
 
                     {msg.meta ? (
-                      <p className="mt-3 border-t border-white/[0.05] pt-2 text-[10px] text-muted-foreground">
-                        مدل: {msg.meta.model} • بردارساز: {msg.meta.embedding} • بازیابی:{" "}
-                        {faNum(msg.meta.retrievedChunks)} قطعه در {faNum(msg.meta.totalMs)} میلی‌ثانیه
+                      <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-white/[0.05] pt-2 text-[10px] text-muted-foreground">
+                        <span
+                          className={`rounded-full border px-2 py-0.5 font-semibold ${
+                            msg.meta.aiMode === "llm"
+                              ? "border-emerald-400/25 bg-emerald-500/10 text-emerald-300"
+                              : "border-amber-400/30 bg-amber-400/10 text-amber-300"
+                          }`}
+                        >
+                          {msg.meta.aiMode === "llm" ? "پاسخ مدل زبانی" : "پاسخ استخراجی از مدارک"}
+                        </span>
+                        {msg.meta.indexSource === "demo" ? (
+                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-semibold text-amber-300">
+                            پایگاه دانش نمایشی
+                          </span>
+                        ) : null}
+                        <span>
+                          مدل: {msg.meta.model} • بردارساز: {msg.meta.embedding} • بازیابی:{" "}
+                          {faNum(msg.meta.retrievedChunks)} قطعه در {faNum(msg.meta.totalMs)} میلی‌ثانیه
+                        </span>
                       </p>
                     ) : null}
                   </div>

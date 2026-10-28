@@ -1,26 +1,40 @@
 import { db } from "@/lib/db";
 import { ok } from "@/lib/api";
 import { ENV } from "@/lib/env";
+import { isDbAvailable } from "@/lib/demo/mode";
+import { demoCounts } from "@/lib/demo/demo-data";
 import { embeddingProvider } from "@/lib/retrieval/embeddings";
-import { llmModelName } from "@/lib/llm/provider";
+import { llmModelName, llmProviderName } from "@/lib/llm/provider";
 import type { SettingsDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const [documents, chunks, ingredients, formulations, graphEntities, graphRelationships, cases] =
-    await Promise.all([
-      db.document.count(),
-      db.chunk.count(),
-      db.ingredient.count(),
-      db.formulation.count(),
-      db.graphEntity.count(),
-      db.graphRelationship.count(),
-      db.troubleshootingCase.count(),
-    ]);
+  const live = await isDbAvailable();
+  let counts: SettingsDTO["counts"];
+  if (live) {
+    try {
+      const [documents, chunks, ingredients, formulations, graphEntities, graphRelationships, cases] =
+        await Promise.all([
+          db.document.count(),
+          db.chunk.count(),
+          db.ingredient.count(),
+          db.formulation.count(),
+          db.graphEntity.count(),
+          db.graphRelationship.count(),
+          db.troubleshootingCase.count(),
+        ]);
+      counts = { documents, chunks, ingredients, formulations, graphEntities, graphRelationships, cases };
+    } catch {
+      counts = demoCounts();
+    }
+  } else {
+    counts = demoCounts();
+  }
 
   const body: SettingsDTO = {
-    llmProvider: ENV.llmProvider,
+    mode: live ? "live" : "demo",
+    llmProvider: llmProviderName(),
     llmModel: llmModelName(),
     embeddingProvider: embeddingProvider.name,
     embeddingDim: embeddingProvider.dim,
@@ -37,7 +51,7 @@ export async function GET() {
       maxUploadMB: ENV.maxUploadMB,
       allowedExtensions: [...ENV.allowedExtensions],
     },
-    counts: { documents, chunks, ingredients, formulations, graphEntities, graphRelationships, cases },
+    counts,
     security: {
       authEnabled: false,
       notes: [

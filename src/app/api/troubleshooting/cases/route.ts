@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { dbOrDemo, requireDb } from "@/lib/demo/mode";
+import { demoTroubleshootingCases } from "@/lib/demo/demo-data";
 import { listCases, createAndAnalyzeCase } from "@/lib/services/troubleshooting";
 
 export const dynamic = "force-dynamic";
@@ -17,8 +19,11 @@ const CreateSchema = z.object({
 
 export async function GET() {
   try {
-    const cases = await listCases();
-    return ok({ cases });
+    const { data, source } = await dbOrDemo(
+      () => listCases(),
+      () => demoTroubleshootingCases(),
+    );
+    return ok({ cases: data, mode: source });
   } catch {
     return fail("LIST_FAILED", "دریافت پرونده‌ها ناموفق بود.", 500);
   }
@@ -30,6 +35,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     const result = await createAndAnalyzeCase({
       title: parsed.data.title.trim(),
       productCategory: parsed.data.productCategory,

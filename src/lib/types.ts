@@ -58,6 +58,10 @@ export interface ChatMeta {
   keywordMs: number;
   vectorMs: number;
   totalMs: number;
+  /** منبع ایندکس بازیابی: دیتابیس واقعی یا دادهٔ نمایشی */
+  indexSource: "db" | "demo";
+  /** نحوهٔ ساخت پاسخ: مدل زبانی یا استخراج از شواهد */
+  aiMode: "llm" | "extractive";
 }
 
 export interface ChatResponseDTO {
@@ -207,6 +211,7 @@ export interface TroubleshootingCaseDTO {
 }
 
 export interface SettingsDTO {
+  mode: "live" | "demo";
   llmProvider: string;
   llmModel: string;
   embeddingProvider: string;
@@ -244,8 +249,12 @@ export interface HealthDTO {
   status: "ok" | "degraded";
   database: boolean;
   llmConfigured: boolean;
+  /** live = متصل به دیتابیس؛ demo = دادهٔ نمایشی */
+  mode: "live" | "demo";
   time: string;
   version: string;
+  model?: string;
+  provider?: string;
 }
 
 /** شکل استاندارد خطا برای همه endpointها */

@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { requireDb } from "@/lib/demo/mode";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     const { id } = await ctx.params;
     await db.ingredient.update({
       where: { id },
@@ -43,6 +45,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    await requireDb();
     const { id } = await ctx.params;
     const usage = await db.formulationIngredient.count({ where: { ingredientId: id } });
     if (usage > 0) {

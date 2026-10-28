@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { dbOrDemo, requireDb } from "@/lib/demo/mode";
+import { demoIngredients } from "@/lib/demo/demo-data";
 import type { IngredientDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -17,26 +19,33 @@ const CreateSchema = z.object({
 export async function GET(req: NextRequest) {
   try {
     const query = req.nextUrl.searchParams.get("query")?.trim().toLowerCase() ?? "";
-    const rows = await db.ingredient.findMany({ orderBy: { name: "asc" }, take: 500 });
-    const filtered = query
-      ? rows.filter(
-          (r) =>
-            r.name.toLowerCase().includes(query) ||
-            (r.inciName ?? "").toLowerCase().includes(query) ||
-            r.category.toLowerCase().includes(query),
-        )
-      : rows;
-    const ingredients: IngredientDTO[] = filtered.map((r) => ({
-      id: r.id,
-      name: r.name,
-      inciName: r.inciName,
-      category: r.category,
-      description: r.description,
-      casNumber: r.casNumber,
-      isSeed: r.isSeed,
-      createdAt: r.createdAt.toISOString(),
-    }));
-    return ok({ ingredients });
+    const { data, source } = await dbOrDemo(
+      async () => {
+        const rows = await db.ingredient.findMany({ orderBy: { name: "asc" }, take: 500 });
+        const filtered = query
+          ? rows.filter(
+              (r) =>
+                r.name.toLowerCase().includes(query) ||
+                (r.inciName ?? "").toLowerCase().includes(query) ||
+                r.category.toLowerCase().includes(query),
+            )
+          : rows;
+        return filtered.map(
+          (r): IngredientDTO => ({
+            id: r.id,
+            name: r.name,
+            inciName: r.inciName,
+            category: r.category,
+            description: r.description,
+            casNumber: r.casNumber,
+            isSeed: r.isSeed,
+            createdAt: r.createdAt.toISOString(),
+          }),
+        );
+      },
+      () => demoIngredients(query),
+    );
+    return ok({ ingredients: data, mode: source });
   } catch {
     return fail("LIST_FAILED", "دریافت فهرست مواد اولیه ناموفق بود.", 500);
   }
@@ -48,6 +57,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     const created = await db.ingredient.create({
       data: {
         name: parsed.data.name.trim(),

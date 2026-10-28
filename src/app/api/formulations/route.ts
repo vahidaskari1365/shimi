@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { dbOrDemo, requireDb } from "@/lib/demo/mode";
+import { demoFormulationSummaries } from "@/lib/demo/demo-data";
 import type { FormulationSummaryDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -28,27 +30,38 @@ export async function GET(req: NextRequest) {
   try {
     const query = req.nextUrl.searchParams.get("query")?.trim().toLowerCase() ?? "";
     const category = req.nextUrl.searchParams.get("category")?.trim() ?? "";
-    const rows = await db.formulation.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      include: { _count: { select: { ingredients: true } } },
-    });
-    let filtered = rows;
-    if (query) filtered = filtered.filter((r) => r.name.toLowerCase().includes(query));
-    if (category) filtered = filtered.filter((r) => r.productCategory === category);
-
-    const formulations: FormulationSummaryDTO[] = filtered.map((r) => ({
-      id: r.id,
-      name: r.name,
-      version: r.version,
-      productCategory: r.productCategory,
-      description: r.description,
-      status: r.status,
-      ingredientCount: r._count.ingredients,
-      isSeed: r.isSeed,
-      createdAt: r.createdAt.toISOString(),
-    }));
-    return ok({ formulations });
+    const { data, source } = await dbOrDemo(
+      async () => {
+        const rows = await db.formulation.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 200,
+          include: { _count: { select: { ingredients: true } } },
+        });
+        let filtered = rows;
+        if (query) filtered = filtered.filter((r) => r.name.toLowerCase().includes(query));
+        if (category) filtered = filtered.filter((r) => r.productCategory === category);
+        return filtered.map(
+          (r): FormulationSummaryDTO => ({
+            id: r.id,
+            name: r.name,
+            version: r.version,
+            productCategory: r.productCategory,
+            description: r.description,
+            status: r.status,
+            ingredientCount: r._count.ingredients,
+            isSeed: r.isSeed,
+            createdAt: r.createdAt.toISOString(),
+          }),
+        );
+      },
+      () => {
+        let list = demoFormulationSummaries();
+        if (query) list = list.filter((r) => r.name.toLowerCase().includes(query));
+        if (category) list = list.filter((r) => r.productCategory === category);
+        return list;
+      },
+    );
+    return ok({ formulations: data, mode: source });
   } catch {
     return fail("LIST_FAILED", "دریافت فهرست فرمولاسیون‌ها ناموفق بود.", 500);
   }
@@ -74,6 +87,15 @@ export async function POST(req: NextRequest) {
   if (ids.size !== ingredients.length) {
     return fail("DUPLICATE_INGREDIENT", "هر ماده فقط یک‌بار در فرمول می‌آید.", 422);
   }
+
+  // در حالت نمایشی، نوشتن مجاز نیست — قبل از هر کوئری دیتابیس بررسی می‌شود
+  try {
+    await requireDb();
+  } catch (err) {
+    if (err instanceof ServiceError) return fail(err.code, err.message, err.status);
+    throw err;
+  }
+
   const existingIds = await db.ingredient.findMany({
     where: { id: { in: [...ids] } },
     select: { id: true },

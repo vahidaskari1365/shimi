@@ -1,4 +1,6 @@
 import { db } from "@/lib/db";
+import { isDbAvailable } from "@/lib/demo/mode";
+import { demoChunkRows } from "@/lib/demo/demo-data";
 import { cosineSimilarity, embeddingProvider } from "@/lib/retrieval/embeddings";
 import { tokenize } from "@/lib/retrieval/tokenize";
 
@@ -32,6 +34,12 @@ interface RetrievalIndex {
 
 let cached: RetrievalIndex | null = null;
 let cacheVersion = 0;
+let source: "db" | "demo" = "db";
+
+/** منبع فعلی ایندکس: دیتابیس واقعی یا دادهٔ نمایشی */
+export function getIndexSource(): "db" | "demo" {
+  return source;
+}
 
 /** با تغییر اسناد (افزودن/حذف/بازنمایه‌سازی) صدا زده می‌شود */
 export function invalidateRetrievalIndex(): void {
@@ -41,11 +49,35 @@ export function invalidateRetrievalIndex(): void {
 export async function getRetrievalIndex(): Promise<RetrievalIndex> {
   if (cached) return cached;
 
-  const rows = await db.chunk.findMany({
-    where: { document: { status: "ready" } },
-    include: { document: { select: { title: true } } },
-    orderBy: [{ documentId: "asc" }, { seq: "asc" }],
-  });
+  let rows: {
+    id: string;
+    documentId: string;
+    page: number | null;
+    heading: string | null;
+    content: string;
+    seq: number;
+    document: { title: string };
+  }[] = [];
+
+  if (await isDbAvailable()) {
+    try {
+      rows = await db.chunk.findMany({
+        where: { document: { status: "ready" } },
+        include: { document: { select: { title: true } } },
+        orderBy: [{ documentId: "asc" }, { seq: "asc" }],
+      });
+    } catch (err) {
+      console.error("[retrieval] db index load failed, falling back to demo:", err);
+      rows = [];
+    }
+  }
+
+  if (rows.length === 0 && !(await isDbAvailable())) {
+    source = "demo";
+    rows = demoChunkRows();
+  } else {
+    source = "db";
+  }
 
   const chunks: CachedChunk[] = [];
   const df = new Map<string, number>();

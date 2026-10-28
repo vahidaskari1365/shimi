@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { isDbAvailable } from "@/lib/demo/mode";
+import { demoTraverse } from "@/lib/demo/demo-data";
 import { traverseGraph } from "@/lib/services/graph";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +18,9 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
-    const paths = await traverseGraph(parsed.data.entityId, parsed.data.maxDepth ?? 2);
+    const paths = (await isDbAvailable())
+      ? await traverseGraph(parsed.data.entityId, parsed.data.maxDepth ?? 2)
+      : demoTraverse(parsed.data.entityId, parsed.data.maxDepth ?? 2);
     return ok({ paths });
   } catch (err) {
     if (err instanceof ServiceError) return fail(err.code, err.message, err.status);

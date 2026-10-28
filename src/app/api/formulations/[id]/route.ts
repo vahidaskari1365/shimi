@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { isDbAvailable, requireDb } from "@/lib/demo/mode";
+import { demoFormulationDetail } from "@/lib/demo/demo-data";
 import type { FormulationDetailDTO } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +14,13 @@ const PatchSchema = z.object({
 });
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
+  if (!(await isDbAvailable())) {
+    const demo = demoFormulationDetail(id);
+    if (demo) return ok(demo);
+    return fail("NOT_FOUND", "فرمولاسیون یافت نشد.", 404);
+  }
   try {
-    const { id } = await ctx.params;
     const row = await db.formulation.findUnique({
       where: { id },
       include: {
@@ -77,6 +84,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     const { id } = await ctx.params;
     await db.formulation.update({ where: { id }, data: parsed.data });
     return ok({ ok: true });
@@ -90,6 +98,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    await requireDb();
     const { id } = await ctx.params;
     await db.formulation.delete({ where: { id } });
     return ok({ ok: true });

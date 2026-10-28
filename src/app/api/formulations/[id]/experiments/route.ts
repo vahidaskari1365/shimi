@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { fail, ok, zodFail } from "@/lib/api";
+import { requireDb } from "@/lib/demo/mode";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     const { id } = await ctx.params;
     const formulation = await db.formulation.findUnique({ where: { id }, select: { id: true } });
     if (!formulation) return fail("NOT_FOUND", "فرمولاسیون یافت نشد.", 404);

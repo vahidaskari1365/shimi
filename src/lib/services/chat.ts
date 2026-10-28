@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ENV } from "@/lib/env";
 import { ServiceError } from "@/lib/api";
 import { retrieveHybrid } from "@/lib/retrieval/hybrid";
+import { getIndexSource } from "@/lib/retrieval/index-cache";
 import { findGraphFactsForQuery } from "@/lib/services/graph";
 import { llmComplete, extractJson, llmModelName } from "@/lib/llm/provider";
 import { CHAT_SYSTEM_PROMPT } from "@/lib/llm/prompts";
@@ -39,6 +40,28 @@ const NO_EVIDENCE_ANSWER = `### مدارک کافی برای پاسخ وجود �
 - سند مرتبط (PDF/TXT/MD/CSV) را در تب «اسناد» بارگذاری کنید.
 - عبارت‌های کلیدی ساده‌تری امتحان کنید (مثلاً نام ماده یا خاصیت).
 - اگر سند اسکن‌شده است، به OCR نیاز دارد و در این نسخه پشتیبانی نمی‌شود.`;
+
+/** ساخت پاسخ استخراجی از شواهد — وقتی مدل زبانی در دسترس نیست */
+function buildExtractiveAnswer(evidence: EvidenceRef[]): string {
+  const refs = evidence
+    .slice(0, 3)
+    .map((e) => {
+      const page = e.page !== null ? ` — صفحهٔ ${e.page}` : "";
+      const heading = e.heading ? ` — ${e.heading}` : "";
+      return `**[${e.index}] ${e.documentTitle}${page}${heading}**
+> ${e.snippet}`;
+    })
+    .join("\n\n");
+
+  return `### پاسخ استخراجی از مدارک (بدون مدل زبانی)
+
+مدل زبانی در دسترس نیست؛ طبق سیاست سیستم، به‌جای ساخت پاسخِ از خودساخته، متن مستقیم مرتبط‌ترین قطعات نمایش داده می‌شود:
+
+${refs}
+
+---
+**برای پاسخ‌دهی هوشمند:** متغیرهای محیطی «LLM_API_KEY» (و در صورت نیاز «LLM_BASE_URL» و «LLM_MODEL») را روی سرور تنظیم کنید.`;
+}
 
 export async function answerQuestion(req: ChatRequestDTO): Promise<ChatResponseDTO> {
   const question = req.question.trim();
@@ -78,6 +101,8 @@ export async function answerQuestion(req: ChatRequestDTO): Promise<ChatResponseD
         keywordMs: retrieval.keywordMs,
         vectorMs: retrieval.vectorMs,
         totalMs: Math.round(performance.now() - t0),
+        indexSource: getIndexSource(),
+        aiMode: "extractive",
       },
     };
   }
@@ -97,19 +122,34 @@ export async function answerQuestion(req: ChatRequestDTO): Promise<ChatResponseD
           .join("\n")}`
       : "";
 
-  const raw = await llmComplete([
-    { role: "assistant", content: CHAT_SYSTEM_PROMPT },
-    {
-      role: "user",
-      content: `پرسش کاربر: ${question}\n\n— مدارک بازیابی‌شده (تنها منبع مجاز پاسخ) —\n${buildEvidenceBlock(evidence)}${graphBlock}${historyBlock}`,
-    },
-  ]);
+  let answer = "";
+  let followUps: string[] = [];
+  let aiMode: "llm" | "extractive" = "llm";
 
-  const parsed = extractJson<unknown>(raw);
-  const validated = parsed ? AnswerSchema.safeParse(parsed) : null;
+  try {
+    const raw = await llmComplete([
+      { role: "assistant", content: CHAT_SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: `پرسش کاربر: ${question}\n\n— مدارک بازیابی‌شده (تنها منبع مجاز پاسخ) —\n${buildEvidenceBlock(evidence)}${graphBlock}${historyBlock}`,
+      },
+    ]);
 
-  const answer = validated?.success ? validated.data.answer : raw.trim();
-  const followUps = validated?.success ? (validated.data.followUps ?? []) : [];
+    const parsed = extractJson<unknown>(raw);
+    const validated = parsed ? AnswerSchema.safeParse(parsed) : null;
+
+    answer = validated?.success ? validated.data.answer : raw.trim();
+    followUps = validated?.success ? (validated.data.followUps ?? []) : [];
+  } catch (err) {
+    // افت‌کاری: مدل زبانی در دسترس نیست → پاسخ استخراجی از شواهد (هرگز خطای ۵۰۰ نمی‌دهیم)
+    if (err instanceof ServiceError && (err.code === "LLM_UNAVAILABLE" || err.code === "LLM_EMPTY")) {
+      console.error("[chat] llm unavailable, using extractive fallback:", err.code);
+      answer = buildExtractiveAnswer(evidence);
+      aiMode = "extractive";
+    } else {
+      throw err;
+    }
+  }
 
   return {
     answer,
@@ -126,6 +166,8 @@ export async function answerQuestion(req: ChatRequestDTO): Promise<ChatResponseD
       keywordMs: retrieval.keywordMs,
       vectorMs: retrieval.vectorMs,
       totalMs: Math.round(performance.now() - t0),
+      indexSource: getIndexSource(),
+      aiMode,
     },
   };
 }

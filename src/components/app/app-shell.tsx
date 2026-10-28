@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Boxes,
+  DatabaseZap,
   FileStack,
   FlaskConical,
   MessageSquareText,
@@ -45,11 +46,13 @@ function HealthPill() {
 
   const state = offline
     ? { dot: "bg-rose-400", label: "قطع ارتباط", ring: "border-rose-400/30 bg-rose-500/10 text-rose-300" }
-    : health?.status === "ok"
-      ? { dot: "bg-emerald-400", label: "سامانه فعال", ring: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" }
-      : health
-        ? { dot: "bg-amber-400", label: "محدود", ring: "border-amber-400/30 bg-amber-400/10 text-amber-300" }
-        : { dot: "bg-white/40", label: "در حال اتصال", ring: "border-white/10 bg-white/5 text-muted-foreground" };
+    : health?.mode === "demo"
+      ? { dot: "bg-amber-400", label: "حالت نمایشی", ring: "border-amber-400/30 bg-amber-400/10 text-amber-300" }
+      : health?.status === "ok"
+        ? { dot: "bg-emerald-400", label: "سامانه فعال", ring: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300" }
+        : health
+          ? { dot: "bg-amber-400", label: "محدود", ring: "border-amber-400/30 bg-amber-400/10 text-amber-300" }
+          : { dot: "bg-white/40", label: "در حال اتصال", ring: "border-white/10 bg-white/5 text-muted-foreground" };
 
   return (
     <span
@@ -77,6 +80,8 @@ export function AppShell() {
   const settingsLoading = useAppStore((s) => s.settingsLoading);
   const loadSettings = useAppStore((s) => s.loadSettings);
   const refreshTick = useAppStore((s) => s.refreshTick);
+  const { health } = useHealth(20000);
+  const isDemo = health?.mode === "demo";
 
   useEffect(() => {
     loadSettings();
@@ -103,6 +108,34 @@ export function AppShell() {
       </header>
 
       <main className="flex-1">
+        {/* اعلان حالت نمایشی — وقتی پایگاه‌داده متصل نیست */}
+        <AnimatePresence>
+          {isDemo ? (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden"
+              role="status"
+            >
+              <div className="mx-auto mt-4 w-full max-w-6xl px-4 md:px-6">
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3">
+                  <DatabaseZap className="mt-0.5 size-4.5 shrink-0 text-amber-300" aria-hidden />
+                  <div className="text-xs leading-6 text-amber-100/90">
+                    <p className="font-bold text-amber-200">حالت نمایشی فعال است — پایگاه‌داده متصل نیست</p>
+                    <p className="text-amber-100/70">
+                      همهٔ داده‌های نمایش‌داده‌شده نمونه‌های مصنوعی و فقط خواندنی‌اند و صرفاً برای آشنایی با
+                      رابط کاربری‌اند؛ برای فعال‌سازی کامل، متغیر محیطی <code className="rounded bg-white/10 px-1 py-0.5" dir="ltr">DATABASE_URL</code> و در
+                      صورت نیاز <code className="rounded bg-white/10 px-1 py-0.5" dir="ltr">LLM_API_KEY</code> را تنظیم کنید.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
         {/* هیروی سینمایی فشرده */}
         <section className="mx-auto w-full max-w-6xl px-4 pt-10 pb-6 md:px-6 md:pt-14">
           <motion.h1

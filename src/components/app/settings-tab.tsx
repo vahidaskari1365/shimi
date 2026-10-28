@@ -99,6 +99,7 @@ export function SettingsTab() {
               icon={Bot}
               title="مدل زبانی"
               rows={[
+                { label: "وضعیت", value: settings.mode === "demo" ? "حالت نمایشی (بدون دیتابیس)" : "متصل و فعال" },
                 { label: "ارائه‌دهنده", value: settings.llmProvider },
                 { label: "مدل", value: settings.llmModel },
                 { label: "اجرا", value: "سمت سرور (ایزوله)" },

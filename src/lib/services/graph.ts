@@ -2,6 +2,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ENV } from "@/lib/env";
 import { audit, ServiceError } from "@/lib/api";
+import { isDbAvailable } from "@/lib/demo/mode";
+import { demoGraphFactForQuery } from "@/lib/demo/demo-data";
 import { normalizeForContains } from "@/lib/retrieval/tokenize";
 import { llmComplete, extractJson } from "@/lib/llm/provider";
 import { GRAPH_EXTRACT_SYSTEM_PROMPT } from "@/lib/llm/prompts";
@@ -408,15 +410,26 @@ export async function findGraphFactsForQuery(
   const tokens = normalizeForContains(query).split(" ").filter((t) => t.length >= 3);
   if (tokens.length === 0) return [];
 
-  const entities = await db.graphEntity.findMany({
-    take: 120,
-    orderBy: { createdAt: "desc" },
-    include: {
-      sourceDocument: { select: { title: true } },
-      outgoing: { take: 4, include: { targetEntity: { select: { name: true, type: true } } } },
-      incoming: { take: 4, include: { sourceEntity: { select: { name: true, type: true } } } },
-    },
-  });
+  // حالت نمایشی: گراف درون‌حافظهٔ دادهٔ نمونه
+  if (!(await isDbAvailable())) {
+    return demoGraphFactForQuery(query, limit);
+  }
+
+  let entities;
+  try {
+    entities = await db.graphEntity.findMany({
+      take: 120,
+      orderBy: { createdAt: "desc" },
+      include: {
+        sourceDocument: { select: { title: true } },
+        outgoing: { take: 4, include: { targetEntity: { select: { name: true, type: true } } } },
+        incoming: { take: 4, include: { sourceEntity: { select: { name: true, type: true } } } },
+      },
+    });
+  } catch (err) {
+    console.error("[graph] facts query failed, falling back to demo:", err);
+    return demoGraphFactForQuery(query, limit);
+  }
 
   const matched = entities.filter((e) => {
     const n = normalizeForContains(e.name);

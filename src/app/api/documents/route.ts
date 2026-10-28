@@ -1,6 +1,8 @@
 import type { NextRequest } from "next/server";
 import { fail, ok, ServiceError } from "@/lib/api";
 import { ENV } from "@/lib/env";
+import { dbOrDemo, requireDb } from "@/lib/demo/mode";
+import { demoDocuments } from "@/lib/demo/demo-data";
 import { createDocument, listDocuments } from "@/lib/services/ingestion";
 
 export const dynamic = "force-dynamic";
@@ -8,8 +10,11 @@ export const runtime = "nodejs";
 
 export async function GET() {
   try {
-    const documents = await listDocuments();
-    return ok({ documents });
+    const { data, source } = await dbOrDemo(
+      () => listDocuments(),
+      () => demoDocuments(),
+    );
+    return ok({ documents: data, mode: source });
   } catch {
     return fail("LIST_FAILED", "دریافت فهرست اسناد ناموفق بود.", 500);
   }
@@ -17,6 +22,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    await requireDb();
     const form = await req.formData().catch(() => null);
     if (!form) {
       return fail("BAD_REQUEST", "درخواست multipart معتبر نیست.", 400);

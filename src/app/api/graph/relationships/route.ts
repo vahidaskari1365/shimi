@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { fail, ok, zodFail, ServiceError } from "@/lib/api";
+import { requireDb } from "@/lib/demo/mode";
 import { upsertRelationship } from "@/lib/services/graph";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return zodFail(parsed.error);
 
   try {
+    await requireDb();
     // رابطهٔ دستی کاربر → تأییدشده
     const result = await upsertRelationship({ ...parsed.data, verified: true, confidence: parsed.data.confidence ?? 1 });
     return ok(result, result.created ? 201 : 200);
