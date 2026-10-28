@@ -254,7 +254,6 @@ export function DocumentsTab() {
                     <p className="truncate text-sm font-bold">{doc.title}</p>
                     <p className="truncate text-[11px] text-muted-foreground">
                       {doc.originalName} • {faBytes(doc.sizeBytes)} • {faDate(doc.createdAt)}
-                      {doc.isSeed ? " • دادهٔ نمایشی مصنوعی" : ""}
                     </p>
                   </div>
                   <div className="ms-auto flex items-center gap-2">

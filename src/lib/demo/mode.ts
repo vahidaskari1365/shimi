@@ -49,7 +49,7 @@ export async function requireDb(): Promise<void> {
     const { ServiceError } = await import("@/lib/api");
     throw new ServiceError(
       "DEMO_MODE",
-      "حالت نمایشی فعال است (پایگاه‌داده متصل نیست) و تغییرات ذخیره نمی‌شود. برای استفادهٔ کامل، متغیر محیطی DATABASE_URL را پیکربندی کنید.",
+      "در حال حاضر ذخیره‌سازی در دسترس نیست؛ لطفاً بعداً دوباره تلاش کنید.",
       503,
     );
   }

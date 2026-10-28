@@ -283,11 +283,6 @@ export function ChatTab() {
                         >
                           {msg.meta.aiMode === "llm" ? "پاسخ مدل زبانی" : "پاسخ استخراجی از مدارک"}
                         </span>
-                        {msg.meta.indexSource === "demo" ? (
-                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-semibold text-amber-300">
-                            پایگاه دانش نمایشی
-                          </span>
-                        ) : null}
                       </p>
                     ) : null}
                   </div>

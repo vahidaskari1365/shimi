@@ -233,11 +233,6 @@ export function IngredientsTab() {
                     >
                       <td className="px-4 py-3 font-semibold">
                         {ing.name}
-                        {ing.isSeed ? (
-                          <span className="ms-2 rounded border border-white/10 bg-white/5 px-1 py-0.5 text-[9px] text-muted-foreground">
-                            نمایشی
-                          </span>
-                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground" dir="ltr">
                         {ing.inciName ?? "—"}

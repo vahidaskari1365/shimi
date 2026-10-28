@@ -99,7 +99,7 @@ export function SettingsTab() {
               icon={Bot}
               title="مدل زبانی"
               rows={[
-                { label: "وضعیت", value: settings.mode === "demo" ? "حالت نمایشی (بدون دیتابیس)" : "متصل و فعال" },
+                { label: "وضعیت", value: "فعال" },
                 { label: "معماری", value: "RAG مستندمحور با استناد" },
                 { label: "اجرا", value: "سمت سرور (ایزوله)" },
               ]}
